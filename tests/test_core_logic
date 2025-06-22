@@ -1,0 +1,40 @@
+# tests/test_core_logic.py
+# DDR-REFACTOR (Loosely Coupled): Testes agora são possíveis graças ao desacoplamento.
+
+import pytest
+import pandas as pd
+from unittest.mock import MagicMock
+from core_logic import generate_suggested_questions
+
+# Fixture para criar um DataFrame de teste
+@pytest.fixture
+def sample_dataframe():
+    data = {'cidade': ['SP', 'RJ', 'SP'], 'vendas': [100, 150, 200]}
+    return pd.DataFrame(data)
+
+# Teste para a função de geração de sugestões
+def test_generate_suggested_questions_parsing(sample_dataframe, monkeypatch):
+    """
+    Testa se a função consegue extrair corretamente uma lista de uma resposta de LLM.
+    Usa um 'mock' para simular a resposta do LLM sem fazer uma chamada de API real.
+    """
+    # Simula a resposta do LLM, incluindo texto extra que precisa ser ignorado
+    mock_response_content = """
+    Claro, aqui estão algumas sugestões baseadas nos dados:
+    ["Qual a soma de vendas por cidade?", "Qual cidade teve a maior venda?"]
+    """
+    
+    # Cria um objeto mock que simula o LLM e sua resposta
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value.content = mock_response_content
+    
+    # Usa monkeypatch para substituir a chamada real à API pelo nosso mock
+    monkeypatch.setattr("core_logic.ChatGoogleGenerativeAI", lambda **kwargs: mock_llm)
+    
+    # Executa a função
+    questions = generate_suggested_questions(sample_dataframe)
+    
+    # Verifica se o resultado está correto
+    assert isinstance(questions, list)
+    assert len(questions) == 2
+    assert questions[0] == "Qual a soma de vendas por cidade?"
