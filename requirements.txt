@@ -1,0 +1,6 @@
+streamlit
+pandas
+python-dotenv
+langchain
+langchain-experimental
+langchain-google-genai  # <-- A biblioteca específica para o Gemini!
