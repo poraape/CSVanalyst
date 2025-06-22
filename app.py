@@ -10,7 +10,7 @@ import style # Importa o novo módulo de estilo
 
 # --- Configuração da Página e Aplicação do Estilo ---
 load_dotenv()
-st.set_page_config(page_title="CSV-Oracle", page_icon="", layout="centered")
+st.set_page_config(page_title="CSV-Oracle", page_icon="🏛️", layout="centered")
 style.apply_apple_style() # Aplica o CSS customizado
 
 # --- Funções de UI ---
