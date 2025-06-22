@@ -1,26 +1,34 @@
 # core_logic.py
-# DDR-REFACTOR (Loosely Coupled): Módulo de lógica de negócio, separado da UI.
+# DDR-REFACTOR (Robustness): Corrigido o erro de tipo no unzip.
 
 import os
 import zipfile
 import pandas as pd
 import re
 import ast
+import io # Importado para criar arquivos em memória
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain.agents.agent_types import AgentType
-import config # Importa as configurações centralizadas
+import config
 
-def unzip_file(zip_path, extract_to='temp_csvs'):
-    # ... (código inalterado)
+def unzip_file(zip_bytes, extract_to='temp_csvs'):
+    """
+    Descompacta um arquivo .zip a partir de seus bytes brutos.
+    Usa um arquivo em memória (io.BytesIO) para evitar erros de tipo.
+    """
     if not os.path.exists(extract_to):
         os.makedirs(extract_to)
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    
+    # Cria um arquivo em memória a partir dos bytes do upload
+    zip_in_memory = io.BytesIO(zip_bytes)
+    
+    # O ZipFile agora opera no arquivo em memória, que tem o método .seek()
+    with zipfile.ZipFile(zip_in_memory, 'r') as zip_ref:
         zip_ref.extractall(extract_to)
     return extract_to
 
 def find_csv_files(directory):
-    # ... (código inalterado)
     return [f for f in os.listdir(directory) if f.endswith('.csv')]
 
 def load_and_combine_csvs(directory, selected_files):
@@ -31,7 +39,6 @@ def load_and_combine_csvs(directory, selected_files):
             df_temp = pd.read_csv(file_path, sep=None, engine='python', on_bad_lines='warn')
             dataframes.append(df_temp)
         except Exception as e:
-            # Em um módulo de core, é melhor retornar o erro para a UI tratar
             raise ValueError(f"Erro ao ler o arquivo {file}: {e}")
     
     if not dataframes:
@@ -40,7 +47,6 @@ def load_and_combine_csvs(directory, selected_files):
 
 def generate_suggested_questions(df):
     try:
-        import io
         buffer = io.StringIO()
         df.info(buf=buffer)
         schema_info = buffer.getvalue()
@@ -59,7 +65,7 @@ def generate_suggested_questions(df):
             return ast.literal_eval(match.group(0))
         return []
     except Exception:
-        return [] # Retorna vazio em caso de qualquer erro
+        return []
 
 def invoke_query_agent(df, question):
     llm = ChatGoogleGenerativeAI(
