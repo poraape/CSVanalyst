@@ -29,7 +29,7 @@ def display_agent_response(response):
         st.write("O agente não produziu uma saída reconhecível.")
 
 # --- Interface Principal e Orquestração ---
-st.title(" CSV-Oracle")
+st.title("🏛️ CSV-Oracle")
 st.caption("Sua central de análise de dados inteligente.")
 
 # Gerenciamento de estado
