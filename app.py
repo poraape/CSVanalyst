@@ -1,11 +1,12 @@
 # app.py
-# DevÆGENT™: CSV-Oracle DataAnalyst v1.4 (Correção de Estado e Fluxo)
+# DevÆGENT™: CSV-Oracle v1.5 (Correção de Parser de Sugestões)
 
 import streamlit as st
 import pandas as pd
 import os
 import zipfile
 import ast
+import re # Importado para o parser robusto
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.agent_types import AgentType
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
@@ -32,8 +33,19 @@ def find_csv_files(directory):
     return [f for f in os.listdir(directory) if f.endswith('.csv')]
 
 def generate_suggested_questions(df, llm):
+    """
+    Analisa o DataFrame e usa um LLM para gerar perguntas sugeridas.
+    Usa regex para extrair a lista da resposta do LLM, tornando-a mais robusta.
+    """
     try:
+        # Usamos to_string() para garantir que a informação seja passada como texto
         schema_info = df.info(verbose=False, buf=None)
+        if schema_info is None: # df.info() imprime no buffer, precisamos capturá-lo
+            import io
+            buffer = io.StringIO()
+            df.info(buf=buffer)
+            schema_info = buffer.getvalue()
+
         head_data = df.head().to_string()
         
         prompt = f"""
@@ -48,16 +60,24 @@ def generate_suggested_questions(df, llm):
         Exemplo de saída: ["Qual foi o total de vendas por categoria?", "Quais são os 5 principais clientes por valor de compra?", "Existe alguma correlação entre a quantidade e o preço unitário?"]
         """
         
-        response = llm.invoke(prompt)
-        return ast.literal_eval(response.content)
+        response = llm.invoke(prompt).content
+        
+        # Procura por qualquer coisa que se pareça com uma lista '[...]' na resposta
+        match = re.search(r'\[.*\]', response, re.DOTALL)
+        
+        if match:
+            list_str = match.group(0)
+            return ast.literal_eval(list_str)
+        else:
+            st.warning("O LLM não retornou uma lista de sugestões no formato esperado.")
+            return []
+
     except Exception as e:
         st.warning(f"Não foi possível gerar sugestões: {e}")
         return []
 
-# --- Interface Principal e Orquestração ---
-
-st.title("🧠 CSV-Oracle Proativo")
-st.write("Carregue um `.zip` com seus CSVs. O Oráculo irá analisá-los e sugerir perguntas.")
+# --- O resto do código permanece o mesmo da v1.4 ---
+# (Interface Principal e Orquestração)
 
 # Gerenciamento de estado
 if 'df' not in st.session_state:
@@ -110,28 +130,22 @@ if st.session_state.df is not None and not st.session_state.suggested_questions:
 if st.session_state.df is not None:
     st.divider()
     
-    ## CORREÇÃO 1: Lógica de sugestões mais robusta e interativa ##
     if st.session_state.suggested_questions:
         st.subheader("Sugestões de Análise:")
-        # Usamos uma caixa de texto para a pergunta principal
         if 'user_question' not in st.session_state:
             st.session_state.user_question = ""
 
-        # Função para atualizar a caixa de texto quando um botão é clicado
         def set_question(question):
             st.session_state.user_question = question
 
-        # Exibe os botões de sugestão
         for q in st.session_state.suggested_questions:
             st.button(q, on_click=set_question, args=(q,), use_container_width=True)
     
-    # Caixa de texto principal, agora controlada pelo estado
     user_question = st.text_input(
         "Faça sua pergunta ou clique em uma sugestão acima:",
         key="user_question"
     )
 
-    ## CORREÇÃO 2: Botão de submissão explícito para evitar perda de estado ##
     if st.button("Perguntar ao Oráculo"):
         if user_question:
             if not os.getenv("GOOGLE_API_KEY"):
