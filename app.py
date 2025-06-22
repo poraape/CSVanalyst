@@ -1,32 +1,38 @@
-# app_refactored.py
-# DDR-REFACTOR (User Flow): UI reestruturada com cards e hierarquia visual.
+# app.py
+# DDR-REFACTOR (v1.7): Correção de ícone e exibição de resposta definitiva.
 
 import streamlit as st
 import pandas as pd
 import os
 from dotenv import load_dotenv
 import core_logic
-import style # Importa o novo módulo de estilo
+import style
 
 # --- Configuração da Página e Aplicação do Estilo ---
 load_dotenv()
 st.set_page_config(page_title="CSV-Oracle", page_icon="🏛️", layout="centered")
-style.apply_apple_style() # Aplica o CSS customizado
+style.apply_apple_style()
 
 # --- Funções de UI ---
 def display_agent_response(response):
-    # ... (código inalterado)
+    """
+    Processa a resposta completa do agente e exibe o resultado da forma mais completa.
+    Mostra a conclusão textual E a tabela de dados, se houver.
+    """
     st.success("Resposta do Oráculo:")
+    
+    # 1. Exibe a conclusão em linguagem natural do agente.
+    st.write(response['output'])
+    
+    # 2. Verifica se há dados tabulares na última observação e os exibe.
     if 'intermediate_steps' in response and response['intermediate_steps']:
-        last_observation = response['intermediate_steps'][-1][1]
+        last_step = response['intermediate_steps'][-1]
+        last_observation = last_step[1]
+        
         if isinstance(last_observation, (pd.DataFrame, pd.Series)):
+            st.write("---")
+            st.write("Dados de Apoio:")
             st.dataframe(last_observation)
-        else:
-            st.write(last_observation)
-    elif 'output' in response:
-        st.write(response['output'])
-    else:
-        st.write("O agente não produziu uma saída reconhecível.")
 
 # --- Interface Principal e Orquestração ---
 st.title("🏛️ CSV-Oracle")
@@ -49,34 +55,30 @@ with st.container():
     )
 
     if uploaded_file:
-        # Lógica de processamento é acionada aqui
         if st.session_state.get('processed_file_name') != uploaded_file.name:
             st.session_state.df = None
             st.session_state.suggested_questions = []
             with st.spinner("Processando arquivos..."):
-                temp_dir = core_logic.unzip_file(uploaded_file.getvalue(), "temp_data")
-                csv_files = core_logic.find_csv_files(temp_dir)
-                if csv_files:
-                    try:
+                try:
+                    temp_dir = core_logic.unzip_file(uploaded_file.getvalue(), "temp_data")
+                    csv_files = core_logic.find_csv_files(temp_dir)
+                    if csv_files:
                         st.session_state.df = core_logic.load_and_combine_csvs(temp_dir, csv_files)
                         st.session_state.processed_file_name = uploaded_file.name
-                    except ValueError as e:
-                        st.error(e)
+                except ValueError as e:
+                    st.error(e)
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# Card 2: Análise e Interação (Aparece após o upload)
+# Card 2: Análise e Interação
 if st.session_state.df is not None:
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("2. Interaja com o Oráculo")
 
-        # Geração de sugestões (se ainda não foram geradas)
         if not st.session_state.suggested_questions:
             with st.spinner("Analisando e gerando sugestões..."):
                 st.session_state.suggested_questions = core_logic.generate_suggested_questions(st.session_state.df)
 
-        # Exibição das sugestões
         if st.session_state.suggested_questions:
             st.write("Comece com uma destas perguntas ou escreva a sua:")
             if 'user_question' not in st.session_state:
@@ -85,13 +87,11 @@ if st.session_state.df is not None:
             def set_question(question):
                 st.session_state.user_question = question
             
-            # Usando st.columns para um layout mais limpo
-            cols = st.columns(len(st.session_state.suggested_questions))
+            cols = st.columns(len(st.session_state.suggested_questions) if st.session_state.suggested_questions else 1)
             for i, q in enumerate(st.session_state.suggested_questions):
                 with cols[i]:
                     st.button(q, on_click=set_question, args=(q,), use_container_width=True, type="secondary")
         
-        # Caixa de pergunta e botão de ação
         user_question = st.text_input(
             "Sua pergunta:",
             key="user_question",
